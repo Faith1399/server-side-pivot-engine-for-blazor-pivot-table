@@ -22,6 +22,16 @@ namespace PivotController.Controllers
         private PivotEngine<DataSource.PivotViewData> PivotEngine = new PivotEngine<DataSource.PivotViewData>();
         private ExcelExport excelExport = new ExcelExport();
         private PivotExportEngine<DataSource.PivotViewData> pivotExport = new PivotExportEngine<DataSource.PivotViewData>();
+        JsonSerializerOptions customSerializeOptions = new JsonSerializerOptions()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters =
+                {
+                    new SortedDictionaryConverter(),
+                    new DoubleConverter(),
+                    new ObjectToInferredTypesConverter()
+                }
+        };
         public PivotController(IMemoryCache cache)
         {
             _cache = cache;
@@ -123,12 +133,12 @@ namespace PivotController.Controllers
             returnValue["memberName"] = param.MemberName;
             if (engine.FieldList[param.MemberName].IsMembersFilled)
             {
-                returnValue["members"] = JsonConvert.SerializeObject(engine.FieldList[param.MemberName].Members);
+                returnValue["members"] = Serialize(engine.FieldList[param.MemberName].Members, customSerializeOptions);
             }
             else
             {
                 await PivotEngine.PerformAction(engine, param).ConfigureAwait(false);
-                returnValue["members"] = JsonConvert.SerializeObject(engine.FieldList[param.MemberName].Members);
+                returnValue["members"] = Serialize(engine.FieldList[param.MemberName].Members, customSerializeOptions);
             }
             return returnValue;
         }
@@ -153,6 +163,13 @@ namespace PivotController.Controllers
             _cache.Remove("engine" + param.Hash);
             _cache.Set("engine" + param.Hash, engine, new MemoryCacheEntryOptions().SetSize(1).SetAbsoluteExpiration(DateTimeOffset.UtcNow.AddMinutes(60)));
             return PivotEngine.GetPivotValues();
+        }
+
+        private string Serialize(dynamic fieldItem, JsonSerializerOptions jsonSerializerOptions = null)
+        {
+            string serializedString;
+            serializedString = fieldItem != null ? System.Text.Json.JsonSerializer.Serialize(fieldItem, jsonSerializerOptions ?? new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull }) : null;
+            return serializedString;
         }
     }
 }
